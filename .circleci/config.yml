@@ -1,25 +1,60 @@
 version: 2.1
 
+parameters:
+  windows-image:
+    type: string
+    default: "circleci/windows@2.2.0"
+  project_dir:
+    type: string
+    default: "JMeterCircleCI"
+  test_dir:
+    type: string
+    default: "JMeterCircleCI.Tests"    
+
 orbs:
-  windows: circleci/windows@2.2.0
+  windows: << pipeline.parameters.windows-image >>
 
 jobs:
   build:
     description: Build application with Release configuration
+    executor:
+      name: windows/default
     steps:
+      - checkout
+
       - run:
           name: "Build Application according to some given configuration"
-          command: dotnet build $PROJECT_NAME --configuration Release
-          environment:
-            PROJECT_NAME: JMeterCircleCI
+          command: >
+            dotnet
+            build << pipeline.parameters.project_dir >>
+            --configuration Release
+
   test:
     description: Setup and run application tests
+    executor:
+      name: windows/default
     steps:
+      - checkout
+
       - run:
           name: "Run Application Tests"
-          command: dotnet test $PROJECT_NAME -v n --results-directory:test_coverage --collect:"Code Coverage"
-          environment:
-            PROJECT_NAME: JMeterCircleCI.Tests
+          command: >
+            dotnet
+            test << pipeline.parameters.test_dir >>
+            --configuration Release
+            --logger trx
+
+      - run:
+          name: "Install trx2junit"
+          when: always
+          command: |
+            dotnet tool install -g trx2junit
+            trx2junit << pipeline.parameters.test_dir >>/TestResults/*.trx
+
+      - store_test_results:
+          name: "Store test results"
+          path: << pipeline.parameters.test_dir >>/TestResults
+
 workflows:
   build_and_test:
     jobs:
