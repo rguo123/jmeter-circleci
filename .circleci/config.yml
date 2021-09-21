@@ -55,10 +55,33 @@ jobs:
           name: "Store test results"
           path: << pipeline.parameters.test_dir >>/TestResults
 
+  deploy:
+    description: Deploy application
+    executor:
+      name: windows/default
+    steps:
+      - checkout
+
+      - run:
+          name: "Deploy Application"
+          command: >
+            echo DEPLOY
+
 workflows:
-  build_and_test:
+  build_test:
     jobs:
       - build
       - test:
           requires:
             - build
+      - hold:
+          type: approval
+          requires:
+            - test
+          filters:
+            branches:
+              only:
+                - main
+      - deploy:
+          requires:
+            - hold
