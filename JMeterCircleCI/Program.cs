@@ -23,4 +23,12 @@ namespace JMeterCircleCI
                     webBuilder.UseStartup<Startup>();
                 });
     }
+
+    public class PaymentService
+    {
+        public bool IsCompleted(bool candidate)
+        {
+            return candidate;
+        }
+    }
 }
