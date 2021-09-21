@@ -1,0 +1,29 @@
+version: 2.1
+
+orbs:
+  windows: circleci/windows@2.2.0
+
+jobs:
+  build:
+    description: Build application with Release configuration
+    steps:
+      - run:
+          name: "Build Application according to some given configuration"
+          command: dotnet build $PROJECT_NAME --configuration Release
+          environment:
+            PROJECT_NAME: JMeterCircleCI
+  test:
+    description: Setup and run application tests
+    steps:
+      - run:
+          name: "Run Application Tests"
+          command: dotnet test $PROJECT_NAME -v n --results-directory:test_coverage --collect:"Code Coverage"
+          environment:
+            PROJECT_NAME: JMeterCircleCI.Tests
+workflows:
+  build_and_test:
+    jobs:
+      - build
+      - test:
+          requires:
+            - build
