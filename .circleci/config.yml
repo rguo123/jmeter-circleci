@@ -1,7 +1,7 @@
 version: 2.1
 
 parameters:
-  windows-image:
+  windows_image:
     type: string
     default: "circleci/windows@2.2.0"
   project_dir:
@@ -9,10 +9,19 @@ parameters:
     default: "JMeterCircleCI"
   test_dir:
     type: string
-    default: "JMeterCircleCI.Tests"    
+    default: "JMeterCircleCI.Tests"
+  function_zip_file:
+    type: string
+    default: "func-jmetercircleci.zip"
+  jmeter_server_vm:
+    type: string
+    default: "jmeterserver"
+  jmeter_client_vm:
+    type: string
+    default: "jmeterclient"
 
 orbs:
-  windows: << pipeline.parameters.windows-image >>
+  windows: << pipeline.parameters.windows_image >>
 
 jobs:
   build:
@@ -55,33 +64,159 @@ jobs:
           name: "Store test results"
           path: << pipeline.parameters.test_dir >>/TestResults
 
-  deploy:
-    description: Deploy application
+  package:
+    description: Package application
     executor:
       name: windows/default
     steps:
       - checkout
 
       - run:
-          name: "Deploy Application"
+          name: "Create package folder"
           command: >
-            echo DEPLOY
+            dotnet
+            publish << pipeline.parameters.project_dir >>
+            --configuration Release
+            --output package
+
+      - run:
+          name: "Zip package folder"
+          command: >
+            Compress-Archive
+            -Path package
+            -DestinationPath << pipeline.parameters.function_zip_file >>
+
+      - persist_to_workspace:
+          name: "Upload zip file to shared workspace"
+          root: .
+          paths:
+            - << pipeline.parameters.function_zip_file >>
+
+  deploy:
+    description: Deploy application
+    executor:
+      name: windows/default
+    steps:
+      - attach_workspace:
+          at: .
+
+      - run:
+          name: "Login to Azure"
+          command: |
+            # Login using service principal
+            az login `
+            --service-principal `
+            --tenant "$Env:TENANT_ID" `
+            --username "$Env:CLIENT_ID" `
+            --password "$Env:CLIENT_SECRET"
+
+            # Set default subscription
+            az account set `
+            --subscription "$Env:SUBSCRIPTION_ID"
+
+      - run:
+          name: "Create azure function"
+          command: |
+            # Set common variables which is associated with build id
+            $Env:RESOURCE_GROUP = "rg-jmetercircleci$Env:CIRCLE_BUILD_NUM"
+            $Env:STORAGE_ACCOUNT = "stjmetercircleci$Env:CIRCLE_BUILD_NUM"
+            $Env:FUNCTION_APP = "func-jmetercircleci$Env:CIRCLE_BUILD_NUM"
+
+            # Create resource group
+            az group create `
+            --location eastus `
+            --name "$Env:RESOURCE_GROUP"
+
+            # Create storage account
+            az storage account create `
+            --resource-group "$Env:RESOURCE_GROUP" `
+            --name "$Env:STORAGE_ACCOUNT"
+
+            # Create azure function app
+            az functionapp create `
+            --resource-group "$Env:RESOURCE_GROUP" `
+            --storage-account "$Env:STORAGE_ACCOUNT" `
+            --name "$Env:FUNCTION_APP" `
+            --consumption-plan-location eastus `
+            --os-type Windows `
+            --runtime dotnet
+
+            # Deploy zip file
+            az functionapp deployment source config-zip `
+            --resource-group "$Env:RESOURCE_GROUP" `
+            --name "$Env:FUNCTION_APP" `
+            --src << pipeline.parameters.function_zip_file >>
+
+  loadtest:
+    description: Load testing using JMeter
+    executor:
+      name: windows/default
+    steps:
+      - checkout
+
+      - run:
+          name: "Login to Azure"
+          command: |
+            # Login using service principal
+            az login `
+            --service-principal `
+            --tenant "$Env:TENANT_ID" `
+            --username "$Env:CLIENT_ID" `
+            --password "$Env:CLIENT_SECRET"
+
+            # Set default subscription
+            az account set `
+            --subscription "$Env:SUBSCRIPTION_ID"
+
+      - run:
+          name: "Create virtual machines for load tests"
+          no_output_timeout: 30m
+          command: |
+            # Create resource group
+            $Env:RESOURCE_GROUP = "rg-loadtest$Env:CIRCLE_BUILD_NUM"
+            az group create `
+            --location eastus `
+            --name "$Env:RESOURCE_GROUP"
+
+            # Create server vm
+            az vm create `
+            --resource-group "$Env:RESOURCE_GROUP" `
+            --name "<< pipeline.parameters.jmeter_server_vm >>" `
+            --image "win2016datacenter" `
+            --size Standard_A1_v2 `
+            --use-unmanaged-disk `
+            --storage-sku Standard_LRS `
+            --admin-username "$Env:ADMIN_USER" `
+            --admin-password "$Env:ADMIN_PASSWORD"
+
+            # Execute remote script to setup jmeter
+            az vm run-command invoke `
+            --command-id RunPowerShellScript `
+            --name "<< pipeline.parameters.jmeter_server_vm >>" `
+            --resource-group "$Env:RESOURCE_GROUP" `
+            --scripts @scripts/jmeter_setup.ps1
 
 workflows:
-  build_test:
+  build_deploy:
     jobs:
       - build
       - test:
           requires:
             - build
-      - hold:
-          type: approval
+      - package:
           requires:
             - test
           filters:
             branches:
               only:
                 - main
+      - hold:
+          type: approval
+          requires:
+            - package
       - deploy:
           requires:
             - hold
+      - loadtest:
+          requires:
+            - deploy
