@@ -206,17 +206,17 @@ workflows:
       - package:
           requires:
             - test
-          # filters:
-          #   branches:
-          #     only:
-          #       - main
-      # - hold:
-      #     type: approval
-      #     requires:
-      #       - package
+          filters:
+            branches:
+              only:
+                - main
+      - hold:
+          type: approval
+          requires:
+            - package
       - deploy:
           requires:
-            - package # hold
+            - hold
       - loadtest:
           requires:
             - deploy
