@@ -148,7 +148,8 @@ jobs:
             --src << pipeline.parameters.function_zip_file >>
 
             # Output variables to file
-            echo "`$targetHost=$func" >> output.ps1
+            echo "`$buildNum=`"$Env:CIRCLE_BUILD_NUM`"" >> output.ps1
+            echo "`$targetHost=`"$func.azurewebsites.net`"" >> output.ps1
 
       - persist_to_workspace:
           name: "Upload output file to shared workspace"
@@ -184,8 +185,11 @@ jobs:
           name: "Create virtual machines for load tests"
           no_output_timeout: 45m
           command: |
+            # Load output variables from file
+            . .\output.ps1
+
             # Create resource group
-            $rg = "rg-loadtest$Env:CIRCLE_BUILD_NUM"
+            $rg = "rg-loadtest$buildNum"
             az group create `
             --location eastus `
             --name "$rg"
@@ -241,14 +245,12 @@ jobs:
             --scripts @scripts/jmeter_setup.ps1
 
             # Query ip address of jmeter server
-            $ip = az network public-ip show `
+            $ip = az vm show `
             --resource-group "$rg" `
-            --name pip-server `
-            --query ipAddress `
+            --name "<< pipeline.parameters.jmeter_server_vm >>" `
+            --query privateIps `
+            --show-details `
             --output tsv
-
-            # Query target hostname from output file
-            . output.ps1
 
             # Debug
             echo "jmeter server: $ip"
