@@ -49,8 +49,8 @@ Invoke-WebRequest $jmeterURL -OutFile "$downloadPath\jmeter.zip"
 Expand-Archive "$downloadPath\jmeter.zip" -DestinationPath "$jmeterPath"
 
 # Download test plan
-$testplanURL = "https://raw.githubusercontent.com/phongcao/jmeter-circleci/phongcao/jmeter/jmeter/sample.jmx"
-Invoke-WebRequest $testplanURL -OutFile "C:\JMeter"
+$testplanURL = "https://raw.githubusercontent.com/phongcao/jmeter-circleci/main/jmeter/sample.jmx"
+Invoke-WebRequest $testplanURL -OutFile "C:\JMeter\sample.jmx"
 
 # ------------------------------------------------------
 # Disable firewall for private networks

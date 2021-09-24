@@ -1,9 +1,4 @@
 # ------------------------------------------------------
-# Preparation
-# ------------------------------------------------------
-$jmeterBin = "C:\JMeter\apache-jmeter-5.4\bin\jmeter-server.bat"
-
-# ------------------------------------------------------
 # Start listening
 # ------------------------------------------------------
-& $jmeterBin -J server.rmi.ssl.disable=true
+Start-Job -ScriptBlock { & C:\JMeter\apache-jmeter-5.4\bin\jmeter-server.bat -J server.rmi.ssl.disable=true }
