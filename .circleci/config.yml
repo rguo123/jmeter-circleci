@@ -118,33 +118,33 @@ jobs:
           name: "Create azure function"
           command: |
             # Set common variables which is associated with build id
-            $Env:RESOURCE_GROUP = "rg-jmetercircleci$Env:CIRCLE_BUILD_NUM"
-            $Env:STORAGE_ACCOUNT = "stjmetercircleci$Env:CIRCLE_BUILD_NUM"
-            $Env:FUNCTION_APP = "func-jmetercircleci$Env:CIRCLE_BUILD_NUM"
+            $rg = "rg-jmetercircleci$Env:CIRCLE_BUILD_NUM"
+            $st = "stjmetercircleci$Env:CIRCLE_BUILD_NUM"
+            $func = "func-jmetercircleci$Env:CIRCLE_BUILD_NUM"
 
             # Create resource group
             az group create `
             --location eastus `
-            --name "$Env:RESOURCE_GROUP"
+            --name "$rg"
 
             # Create storage account
             az storage account create `
-            --resource-group "$Env:RESOURCE_GROUP" `
-            --name "$Env:STORAGE_ACCOUNT"
+            --resource-group "$rg" `
+            --name "$st"
 
             # Create azure function app
             az functionapp create `
-            --resource-group "$Env:RESOURCE_GROUP" `
-            --storage-account "$Env:STORAGE_ACCOUNT" `
-            --name "$Env:FUNCTION_APP" `
+            --resource-group "$rg" `
+            --storage-account "$st" `
+            --name "$func" `
             --consumption-plan-location eastus `
             --os-type Windows `
             --runtime dotnet
 
             # Deploy zip file
             az functionapp deployment source config-zip `
-            --resource-group "$Env:RESOURCE_GROUP" `
-            --name "$Env:FUNCTION_APP" `
+            --resource-group "$rg" `
+            --name "$func" `
             --src << pipeline.parameters.function_zip_file >>
 
   loadtest:
@@ -173,27 +173,53 @@ jobs:
           no_output_timeout: 30m
           command: |
             # Create resource group
-            $Env:RESOURCE_GROUP = "rg-loadtest$Env:CIRCLE_BUILD_NUM"
+            $rg = "rg-loadtest$Env:CIRCLE_BUILD_NUM"
             az group create `
             --location eastus `
-            --name "$Env:RESOURCE_GROUP"
+            --name "$rg"
+
+            # Create vnet
+            $vnet = "vnet-jmeter"
+            az network vnet create `
+            --resource-group "$rg" `
+            --name "$vnet"
 
             # Create server vm
             az vm create `
-            --resource-group "$Env:RESOURCE_GROUP" `
+            --resource-group "$rg" `
             --name "<< pipeline.parameters.jmeter_server_vm >>" `
             --image "win2016datacenter" `
             --size Standard_A1_v2 `
             --use-unmanaged-disk `
             --storage-sku Standard_LRS `
             --admin-username "$Env:ADMIN_USER" `
-            --admin-password "$Env:ADMIN_PASSWORD"
+            --admin-password "$Env:ADMIN_PASSWORD" `
+            --vnet-name "$vnet"
 
             # Execute remote script to setup jmeter
             az vm run-command invoke `
             --command-id RunPowerShellScript `
             --name "<< pipeline.parameters.jmeter_server_vm >>" `
-            --resource-group "$Env:RESOURCE_GROUP" `
+            --resource-group "$rg" `
+            --scripts @scripts/jmeter_setup.ps1
+
+            # Create client vm
+            az vm create `
+            --resource-group "$rg" `
+            --name "<< pipeline.parameters.jmeter_client_vm >>" `
+            --image "win2016datacenter" `
+            --size Standard_A1_v2 `
+            --use-unmanaged-disk `
+            --storage-sku Standard_LRS `
+            --admin-username "$Env:ADMIN_USER" `
+            --admin-password "$Env:ADMIN_PASSWORD" `
+            --vnet-name "$vnet"
+
+            # Execute remote script to setup jmeter
+            az vm run-command invoke `
+            --command-id RunPowerShellScript `
+            --name "<< pipeline.parameters.jmeter_client_vm >>" `
+            --resource-group "$rg" `
             --scripts @scripts/jmeter_setup.ps1
 
 workflows:
@@ -206,17 +232,17 @@ workflows:
       - package:
           requires:
             - test
-          filters:
-            branches:
-              only:
-                - main
-      - hold:
-          type: approval
-          requires:
-            - package
+      #     filters:
+      #       branches:
+      #         only:
+      #           - main
+      # - hold:
+      #     type: approval
+      #     requires:
+      #       - package
       - deploy:
           requires:
-            - hold
+            - package # hold
       - loadtest:
           requires:
             - deploy
