@@ -147,12 +147,24 @@ jobs:
             --name "$func" `
             --src << pipeline.parameters.function_zip_file >>
 
+            # Output variables to file
+            echo "`$targetHost=$func" >> output.ps1
+
+      - persist_to_workspace:
+          name: "Upload output file to shared workspace"
+          root: .
+          paths:
+            - output.ps1
+
   loadtest:
     description: Load testing using JMeter
     executor:
       name: windows/default
     steps:
       - checkout
+
+      - attach_workspace:
+          at: .
 
       - run:
           name: "Login to Azure"
@@ -170,7 +182,7 @@ jobs:
 
       - run:
           name: "Create virtual machines for load tests"
-          no_output_timeout: 30m
+          no_output_timeout: 45m
           command: |
             # Create resource group
             $rg = "rg-loadtest$Env:CIRCLE_BUILD_NUM"
@@ -179,10 +191,10 @@ jobs:
             --name "$rg"
 
             # Create vnet
-            $vnet = "vnet-jmeter"
             az network vnet create `
             --resource-group "$rg" `
-            --name "$vnet"
+            --name vnet-jmeter `
+            --subnet-name default
 
             # Create server vm
             az vm create `
@@ -194,7 +206,7 @@ jobs:
             --storage-sku Standard_LRS `
             --admin-username "$Env:ADMIN_USER" `
             --admin-password "$Env:ADMIN_PASSWORD" `
-            --vnet-name "$vnet"
+            --public-ip-address pip-server
 
             # Execute remote script to setup jmeter
             az vm run-command invoke `
@@ -202,6 +214,12 @@ jobs:
             --name "<< pipeline.parameters.jmeter_server_vm >>" `
             --resource-group "$rg" `
             --scripts @scripts/jmeter_setup.ps1
+
+            az vm run-command invoke `
+            --command-id RunPowerShellScript `
+            --name "<< pipeline.parameters.jmeter_server_vm >>" `
+            --resource-group "$rg" `
+            --scripts @scripts/jmeter_server_init.ps1
 
             # Create client vm
             az vm create `
@@ -213,7 +231,7 @@ jobs:
             --storage-sku Standard_LRS `
             --admin-username "$Env:ADMIN_USER" `
             --admin-password "$Env:ADMIN_PASSWORD" `
-            --vnet-name "$vnet"
+            --public-ip-address pip-client
 
             # Execute remote script to setup jmeter
             az vm run-command invoke `
@@ -221,6 +239,28 @@ jobs:
             --name "<< pipeline.parameters.jmeter_client_vm >>" `
             --resource-group "$rg" `
             --scripts @scripts/jmeter_setup.ps1
+
+            # Query ip address of jmeter server
+            $ip = az network public-ip show `
+            --resource-group "$rg" `
+            --name pip-server `
+            --query ipAddress `
+            --output tsv
+
+            # Query target hostname from output file
+            . output.ps1
+
+            # Debug
+            echo "jmeter server: $ip"
+            echo "target host: $targetHost"
+
+            # Invoke tests
+            az vm run-command invoke `
+            --command-id RunPowerShellScript `
+            --name "<< pipeline.parameters.jmeter_server_vm >>" `
+            --resource-group "$rg" `
+            --scripts @scripts/jmeter_client_init.ps1 `
+            --parameters "arg1=$ip" "arg2=$targetHost"
 
 workflows:
   build_deploy:
@@ -232,17 +272,17 @@ workflows:
       - package:
           requires:
             - test
-      #     filters:
-      #       branches:
-      #         only:
-      #           - main
-      # - hold:
-      #     type: approval
-      #     requires:
-      #       - package
+          filters:
+            branches:
+              only:
+                - main
+      - hold:
+          type: approval
+          requires:
+            - package
       - deploy:
           requires:
-            - package # hold
+            - hold
       - loadtest:
           requires:
             - deploy
