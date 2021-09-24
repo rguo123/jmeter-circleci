@@ -48,5 +48,11 @@ Invoke-WebRequest $jmeterURL -OutFile "$downloadPath\jmeter.zip"
 # Install jmeter
 Expand-Archive "$downloadPath\jmeter.zip" -DestinationPath "$jmeterPath"
 
-# Debug
-& $jmeterPath\apache-jmeter-5.4\bin\jmeter.bat -n
+# Download test plan
+$testplanURL = "https://raw.githubusercontent.com/phongcao/jmeter-circleci/phongcao/jmeter/jmeter/sample.jmx"
+Invoke-WebRequest $testplanURL -OutFile "C:\JMeter"
+
+# ------------------------------------------------------
+# Disable firewall for private networks
+# ------------------------------------------------------
+Set-NetFirewallProfile -Profile Private -Enabled False
