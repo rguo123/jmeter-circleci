@@ -212,18 +212,15 @@ jobs:
             --admin-password "$Env:ADMIN_PASSWORD" `
             --public-ip-address pip-server
 
-            # Execute remote script to setup jmeter
-            az vm run-command invoke `
-            --command-id RunPowerShellScript `
-            --name "<< pipeline.parameters.jmeter_server_vm >>" `
+            # Execute remote script to setup server
+            az vm extension set `
+            --publisher Microsoft.Compute `
+            --version 1.9 `
+            --name CustomScriptExtension `
             --resource-group "$rg" `
-            --scripts @scripts/jmeter_setup.ps1
-
-            az vm run-command invoke `
-            --command-id RunPowerShellScript `
-            --name "<< pipeline.parameters.jmeter_server_vm >>" `
-            --resource-group "$rg" `
-            --scripts @scripts/jmeter_server_init.ps1
+            --vm-name "<< pipeline.parameters.jmeter_server_vm >>" `
+            --no-wait `
+            --settings '{\"fileUris\": [\"https://raw.githubusercontent.com/phongcao/jmeter-circleci/main/scripts/jmeter_server_init.ps1\"],\"commandToExecute\": \"powershell -ExecutionPolicy Unrestricted -File jmeter_server_init.ps1\"}'
 
             # Create client vm
             az vm create `
@@ -237,13 +234,6 @@ jobs:
             --admin-password "$Env:ADMIN_PASSWORD" `
             --public-ip-address pip-client
 
-            # Execute remote script to setup jmeter
-            az vm run-command invoke `
-            --command-id RunPowerShellScript `
-            --name "<< pipeline.parameters.jmeter_client_vm >>" `
-            --resource-group "$rg" `
-            --scripts @scripts/jmeter_setup.ps1
-
             # Query ip address of jmeter server
             $ip = az vm show `
             --resource-group "$rg" `
@@ -252,17 +242,37 @@ jobs:
             --show-details `
             --output tsv
 
-            # Debug
+            # Output info
             echo "jmeter server: $ip"
             echo "target host: $targetHost"
 
-            # Invoke tests
+            # Waiting to make sure that jmeter server has been started
+            Start-Sleep -Second 300
+
+            # Execute remote script to setup client
             az vm run-command invoke `
             --command-id RunPowerShellScript `
-            --name "<< pipeline.parameters.jmeter_server_vm >>" `
+            --name "<< pipeline.parameters.jmeter_client_vm >>" `
             --resource-group "$rg" `
             --scripts @scripts/jmeter_client_init.ps1 `
-            --parameters "arg1=$ip" "arg2=$targetHost"
+            --parameters "ip=$ip" "target=$targetHost"
+
+      - run:
+          name: "Cleanup resources"
+          when: always
+          no_output_timeout: 30m
+          command: |
+            # Load output variables from file
+            . .\output.ps1
+
+            # Remove resource groups
+            az group delete `
+            --name "rg-jmetercircleci$buildNum" `
+            --yes
+
+            az group delete `
+            --name "rg-loadtest$buildNum" `
+            --yes
 
 workflows:
   build_deploy:
