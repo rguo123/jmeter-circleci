@@ -255,7 +255,7 @@ jobs:
             --name "<< pipeline.parameters.jmeter_client_vm >>" `
             --resource-group "$rg" `
             --scripts @scripts/jmeter_client_init.ps1 `
-            --parameters "ip=$ip" "target=$targetHost"
+            --parameters "arg1=$ip" "arg2=$targetHost"
 
       - run:
           name: "Cleanup resources"
