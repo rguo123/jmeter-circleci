@@ -59,4 +59,4 @@ Set-NetFirewallProfile -Profile Private, Public -Enabled False
 # ------------------------------------------------------
 $jmeterBin = "C:\JMeter\apache-jmeter-5.4\bin\jmeter.bat"
 $jmeterTestPlan = "C:\JMeter\sample.jmx"
-"`n" | & $jmeterBin -n -X -J server.rmi.ssl.disable=true -t $jmeterTestPlan -J target_hostname=$args[2] -R $args[1]
+"`n" | & $jmeterBin -n -X -J server.rmi.ssl.disable=true -t $jmeterTestPlan -G target_hostname=$args[2] -R $args[1]
