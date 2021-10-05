@@ -19,6 +19,9 @@ parameters:
   jmeter_client_vm:
     type: string
     default: "jmeterclient"
+  key_vault_name:
+    type: string
+    default: "kv-circleci"
 
 orbs:
   windows: << pipeline.parameters.windows_image >>
@@ -188,6 +191,17 @@ jobs:
             # Load output variables from file
             . .\output.ps1
 
+            # Retrieve secrets from Azure Key Vault
+            $username = & az keyvault secret show `
+            --vault-name << pipeline.parameters.key_vault_name >> `
+            --query value `
+            --name admin-user
+
+            $password = & az keyvault secret show `
+            --vault-name << pipeline.parameters.key_vault_name >> `
+            --query value `
+            --name admin-password
+
             # Create resource group
             $rg = "rg-loadtest$buildNum"
             az group create `
@@ -208,8 +222,8 @@ jobs:
             --size Standard_A1_v2 `
             --use-unmanaged-disk `
             --storage-sku Standard_LRS `
-            --admin-username "$Env:ADMIN_USER" `
-            --admin-password "$Env:ADMIN_PASSWORD" `
+            --admin-username "$username" `
+            --admin-password "$password" `
             --public-ip-address pip-server
 
             # Execute remote script to setup server
@@ -230,8 +244,8 @@ jobs:
             --size Standard_A1_v2 `
             --use-unmanaged-disk `
             --storage-sku Standard_LRS `
-            --admin-username "$Env:ADMIN_USER" `
-            --admin-password "$Env:ADMIN_PASSWORD" `
+            --admin-username "$username" `
+            --admin-password "$password" `
             --public-ip-address pip-client
 
             # Query ip address of jmeter server
