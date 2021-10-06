@@ -25,6 +25,7 @@ parameters:
 
 orbs:
   windows: << pipeline.parameters.windows_image >>
+  terraform: circleci/terraform@3.0.0
 
 jobs:
   build:
