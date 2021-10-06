@@ -1,9 +1,6 @@
 version: 2.1
 
 parameters:
-  windows_image:
-    type: string
-    default: "circleci/windows@2.2.0"
   project_dir:
     type: string
     default: "JMeterCircleCI"
@@ -24,10 +21,44 @@ parameters:
     default: "kv-circleci"
 
 orbs:
-  windows: << pipeline.parameters.windows_image >>
+  windows: circleci/windows@2.2.0
+  terraform: circleci/terraform@3.0.0
+  azure-cli: circleci/azure-cli@1.2.0
+
+commands:
+  login-to-azure:
+    steps:
+      - azure-cli/install
+
+      - run:
+          name: "Verify Azure install"
+          command: az -v
+
+      - azure-cli/login-with-service-principal:
+          azure-sp: ARM_CLIENT_ID
+          azure-sp-password: ARM_CLIENT_SECRET
+          azure-sp-tenant: ARM_TENANT_ID
 
 jobs:
-  build:
+  build_image:
+    description: Build and Push JMeter Docker image
+    executor:
+      name: azure-cli/default
+    steps:
+      - checkout
+
+      - login-to-azure
+
+      - run:
+          name: "Build and Push JMeter Docker image"
+          command: >
+            az acr build
+            -t $TF_VAR_JMETER_DOCKER_IMAGE
+            -r $TF_VAR_JMETER_IMAGE_REGISTRY_NAME
+            -f docker/Dockerfile
+            .
+
+  build_web_app:
     description: Build application with Release configuration
     executor:
       name: windows/default
@@ -41,7 +72,7 @@ jobs:
             build << pipeline.parameters.project_dir >>
             --configuration Release
 
-  test:
+  test_web_app:
     description: Setup and run application tests
     executor:
       name: windows/default
@@ -67,7 +98,7 @@ jobs:
           name: "Store test results"
           path: << pipeline.parameters.test_dir >>/TestResults
 
-  package:
+  package_web_app:
     description: Package application
     executor:
       name: windows/default
@@ -95,220 +126,78 @@ jobs:
           paths:
             - << pipeline.parameters.function_zip_file >>
 
-  deploy:
-    description: Deploy application
-    executor:
-      name: windows/default
-    steps:
-      - attach_workspace:
-          at: .
-
-      - run:
-          name: "Login to Azure"
-          command: |
-            # Login using service principal
-            az login `
-            --service-principal `
-            --tenant "$Env:TENANT_ID" `
-            --username "$Env:CLIENT_ID" `
-            --password "$Env:CLIENT_SECRET"
-
-            # Set default subscription
-            az account set `
-            --subscription "$Env:SUBSCRIPTION_ID"
-
-      - run:
-          name: "Create azure function"
-          command: |
-            # Set common variables which is associated with build id
-            $rg = "rg-jmetercircleci$Env:CIRCLE_BUILD_NUM"
-            $st = "stjmetercircleci$Env:CIRCLE_BUILD_NUM"
-            $func = "func-jmetercircleci$Env:CIRCLE_BUILD_NUM"
-
-            # Create resource group
-            az group create `
-            --location eastus `
-            --name "$rg"
-
-            # Create storage account
-            az storage account create `
-            --resource-group "$rg" `
-            --name "$st"
-
-            # Create azure function app
-            az functionapp create `
-            --resource-group "$rg" `
-            --storage-account "$st" `
-            --name "$func" `
-            --consumption-plan-location eastus `
-            --os-type Windows `
-            --runtime dotnet
-
-            # Deploy zip file
-            az functionapp deployment source config-zip `
-            --resource-group "$rg" `
-            --name "$func" `
-            --src << pipeline.parameters.function_zip_file >>
-
-            # Output variables to file
-            echo "`$buildNum=`"$Env:CIRCLE_BUILD_NUM`"" >> output.ps1
-            echo "`$targetHost=`"$func.azurewebsites.net`"" >> output.ps1
-
-      - persist_to_workspace:
-          name: "Upload output file to shared workspace"
-          root: .
-          paths:
-            - output.ps1
-
-  loadtest:
-    description: Load testing using JMeter
-    executor:
-      name: windows/default
+  deploy_terraform:
+    executor: terraform/default
     steps:
       - checkout
 
       - attach_workspace:
           at: .
 
-      - run:
-          name: "Login to Azure"
-          command: |
-            # Login using service principal
-            az login `
-            --service-principal `
-            --tenant "$Env:TENANT_ID" `
-            --username "$Env:CLIENT_ID" `
-            --password "$Env:CLIENT_SECRET"
+      - login-to-azure
 
-            # Set default subscription
-            az account set `
-            --subscription "$Env:SUBSCRIPTION_ID"
+      - terraform/init:
+          path: terraform
 
-      - run:
-          name: "Create virtual machines for load tests"
-          no_output_timeout: 45m
-          command: |
-            # Load output variables from file
-            . .\output.ps1
+      - terraform/validate:
+          path: terraform
 
-            # Retrieve secrets from Azure Key Vault
-            $username = & az keyvault secret show `
-            --vault-name << pipeline.parameters.key_vault_name >> `
-            --query value `
-            --name admin-user
+      - terraform/plan:
+          path: terraform
 
-            $password = & az keyvault secret show `
-            --vault-name << pipeline.parameters.key_vault_name >> `
-            --query value `
-            --name admin-password
-
-            # Create resource group
-            $rg = "rg-loadtest$buildNum"
-            az group create `
-            --location eastus `
-            --name "$rg"
-
-            # Create vnet
-            az network vnet create `
-            --resource-group "$rg" `
-            --name vnet-jmeter `
-            --subnet-name default
-
-            # Create server vm
-            az vm create `
-            --resource-group "$rg" `
-            --name "<< pipeline.parameters.jmeter_server_vm >>" `
-            --image "win2016datacenter" `
-            --size Standard_A1_v2 `
-            --use-unmanaged-disk `
-            --storage-sku Standard_LRS `
-            --admin-username "$username" `
-            --admin-password "$password" `
-            --public-ip-address pip-server
-
-            # Execute remote script to setup server
-            az vm extension set `
-            --publisher Microsoft.Compute `
-            --version 1.9 `
-            --name CustomScriptExtension `
-            --resource-group "$rg" `
-            --vm-name "<< pipeline.parameters.jmeter_server_vm >>" `
-            --no-wait `
-            --settings '{\"fileUris\": [\"https://raw.githubusercontent.com/phongcao/jmeter-circleci/main/scripts/jmeter_server_init.ps1\"],\"commandToExecute\": \"powershell -ExecutionPolicy Unrestricted -File jmeter_server_init.ps1\"}'
-
-            # Create client vm
-            az vm create `
-            --resource-group "$rg" `
-            --name "<< pipeline.parameters.jmeter_client_vm >>" `
-            --image "win2016datacenter" `
-            --size Standard_A1_v2 `
-            --use-unmanaged-disk `
-            --storage-sku Standard_LRS `
-            --admin-username "$username" `
-            --admin-password "$password" `
-            --public-ip-address pip-client
-
-            # Query ip address of jmeter server
-            $ip = az vm show `
-            --resource-group "$rg" `
-            --name "<< pipeline.parameters.jmeter_server_vm >>" `
-            --query privateIps `
-            --show-details `
-            --output tsv
-
-            # Output info
-            echo "jmeter server: $ip"
-            echo "target host: $targetHost"
-
-            # Waiting to make sure that jmeter server has been started
-            Start-Sleep -Second 300
-
-            # Execute remote script to setup client
-            az vm run-command invoke `
-            --command-id RunPowerShellScript `
-            --name "<< pipeline.parameters.jmeter_client_vm >>" `
-            --resource-group "$rg" `
-            --scripts @scripts/jmeter_client_init.ps1 `
-            --parameters "arg1=$ip" "arg2=$targetHost"
+      - terraform/apply:
+          path: terraform
 
       - run:
-          name: "Cleanup resources"
-          when: always
-          no_output_timeout: 30m
+          name: "Waiting for test results."
           command: |
-            # Load output variables from file
-            . .\output.ps1
+            RG = & terraform output resource_group_name
+            NAME = & terraform output jmeter_master_name
+            echo "`date`: Started!"
+            while [ $(az container show -g $RG -n $NAME --query "containers[0].instanceView.currentState.state" -o tsv) == "Running" ]; do
+              echo "`date`: Still Running..."
+              sleep 20
+            done
+            echo "`date`: Finished!"
 
-            # Remove resource groups
-            az group delete `
-            --name "rg-jmetercircleci$buildNum" `
-            --yes
+      - run:
+          name: "Get output logs."
+          command: |
+            az container logs -g $(terraform output resource_group_name) -n $(terraform output jmeter_master_name)
 
-            az group delete `
-            --name "rg-loadtest$buildNum" `
-            --yes
+      # - terraform/destroy:
+      #     path: terraform
 
 workflows:
-  build_deploy:
+  build_jmeter_docker_image:
     jobs:
-      - build
-      - test:
+      - build_image_approval:
+          type: approval
+      - build_image:
           requires:
-            - build
-      - package:
+            - build_image_approval
+          # filters:
+          #   branches:
+          #     only:
+          #       - main
+
+  build_deploy_loadtest:
+    jobs:
+      - build_web_app
+      - test_web_app:
           requires:
-            - test
-          filters:
-            branches:
-              only:
-                - main
-      - hold:
+            - build_web_app
+      - package_web_app:
+          requires:
+            - test_web_app
+          # filters:
+          #   branches:
+          #     only:
+          #       - main
+      - deploy_approval:
           type: approval
           requires:
-            - package
-      - deploy:
+            - package_web_app
+      - deploy_terraform:
           requires:
-            - hold
-      - loadtest:
-          requires:
-            - deploy
+            - deploy_approval
