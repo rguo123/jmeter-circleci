@@ -95,7 +95,7 @@ jobs:
           paths:
             - << pipeline.parameters.function_zip_file >>
 
-  deploy:
+  deploy_az_cli:
     description: Deploy application
     executor:
       name: windows/default
@@ -160,7 +160,7 @@ jobs:
           paths:
             - output.ps1
 
-  loadtest:
+  loadtest_az_cli:
     description: Load testing using JMeter
     executor:
       name: windows/default
@@ -288,6 +288,44 @@ jobs:
             --name "rg-loadtest$buildNum" `
             --yes
 
+  deploy_terraform:
+    executor: terraform/default
+    working_directory: terraform
+    steps:
+      - checkout
+
+      - attach_workspace:
+          at: .
+
+      - run:
+          name: "Login to Azure"
+          command: |
+            # Login using service principal
+            az login `
+            --service-principal `
+            --tenant "$Env:TENANT_ID" `
+            --username "$Env:CLIENT_ID" `
+            --password "$Env:CLIENT_SECRET"
+
+            # Set default subscription
+            az account set `
+            --subscription "$Env:SUBSCRIPTION_ID"
+
+      - terraform/init:
+          path: .
+
+      - terraform/validate:
+          path: .
+
+      - terraform/plan:
+          path: .
+
+      - terraform/apply:
+          path: .
+
+      - terraform/destroy:
+          path: .
+
 workflows:
   build_deploy:
     jobs:
@@ -298,17 +336,20 @@ workflows:
       - package:
           requires:
             - test
-          filters:
-            branches:
-              only:
-                - main
+          # filters:
+          #   branches:
+          #     only:
+          #       - main
       - hold:
           type: approval
           requires:
             - package
-      - deploy:
+      - deploy_terraform:
           requires:
-            - hold
-      - loadtest:
-          requires:
-            - deploy
+            - package # hold
+      # - deploy_az_cli:
+      #     requires:
+      #       - hold
+      # - loadtest_az_cli:
+      #     requires:
+      #       - deploy_az_cli
