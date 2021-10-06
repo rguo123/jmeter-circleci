@@ -292,25 +292,16 @@ jobs:
   deploy_terraform:
     executor: terraform/default
     working_directory: terraform
+    environment:
+      ARM_CLIENT_ID: $Env:CLIENT_ID
+      ARM_CLIENT_SECRET: $Env:CLIENT_SECRET
+      ARM_SUBSCRIPTION_ID: $Env:SUBSCRIPTION_ID
+      ARM_TENANT_ID: $Env:TENANT_ID
     steps:
       - checkout
 
       - attach_workspace:
           at: .
-
-      - run:
-          name: "Login to Azure"
-          command: |
-            # Login using service principal
-            az login `
-            --service-principal `
-            --tenant "$Env:TENANT_ID" `
-            --username "$Env:CLIENT_ID" `
-            --password "$Env:CLIENT_SECRET"
-
-            # Set default subscription
-            az account set `
-            --subscription "$Env:SUBSCRIPTION_ID"
 
       - terraform/init:
           path: .
