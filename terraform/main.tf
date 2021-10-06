@@ -161,50 +161,50 @@ SETTINGS
 
 }
 
-# resource "azurerm_container_group" "jmeter_master" {
-#   name                = "${var.PREFIX}-master"
-#   location            = azurerm_resource_group.jmeter_rg.location
-#   resource_group_name = azurerm_resource_group.jmeter_rg.name
+resource "azurerm_container_group" "jmeter_master" {
+  name                = "${var.PREFIX}-master"
+  location            = azurerm_resource_group.jmeter_rg.location
+  resource_group_name = azurerm_resource_group.jmeter_rg.name
 
-#   ip_address_type = "private"
-#   os_type         = "Linux"
+  ip_address_type = "private"
+  os_type         = "Linux"
 
-#   depends_on = [azurerm_virtual_machine_extension.jmeter_vm_extension, azurerm_network_interface.jmeter_slave_nic]
+  depends_on = [azurerm_virtual_machine_extension.jmeter_vm_extension, azurerm_network_interface.jmeter_slave_nic]
 
-#   network_profile_id = azurerm_network_profile.jmeter_net_profile.id
+  network_profile_id = azurerm_network_profile.jmeter_net_profile.id
 
-#   restart_policy = "Never"
+  restart_policy = "Never"
 
-#   image_registry_credential {
-#     server   = var.JMETER_IMAGE_REGISTRY_SERVER
-#     username = var.JMETER_IMAGE_REGISTRY_USERNAME
-#     password = var.JMETER_IMAGE_REGISTRY_PASSWORD
-#   }
+  image_registry_credential {
+    server   = var.JMETER_IMAGE_REGISTRY_SERVER
+    username = var.JMETER_IMAGE_REGISTRY_USERNAME
+    password = var.JMETER_IMAGE_REGISTRY_PASSWORD
+  }
 
-#   container {
-#     name   = "jmeter"
-#     image  = var.JMETER_DOCKER_IMAGE
-#     cpu    = var.JMETER_MASTER_CPU
-#     memory = var.JMETER_MASTER_MEMORY
+  container {
+    name   = "jmeter"
+    image  = var.JMETER_DOCKER_IMAGE
+    cpu    = var.JMETER_MASTER_CPU
+    memory = var.JMETER_MASTER_MEMORY
 
-#     ports {
-#       port     = var.JMETER_DOCKER_PORT
-#       protocol = "TCP"
-#     }
+    ports {
+      port     = var.JMETER_DOCKER_PORT
+      protocol = "TCP"
+    }
 
-#     volume {
-#       name                 = "jmeter"
-#       mount_path           = "/jmeter"
-#       read_only            = false
-#       storage_account_name = azurerm_storage_account.jmeter_storage.name
-#       storage_account_key  = azurerm_storage_account.jmeter_storage.primary_access_key
-#       share_name           = azurerm_storage_share.jmeter_share.name
-#     }
+    volume {
+      name                 = "jmeter"
+      mount_path           = "/jmeter"
+      read_only            = false
+      storage_account_name = azurerm_storage_account.jmeter_storage.name
+      storage_account_key  = azurerm_storage_account.jmeter_storage.primary_access_key
+      share_name           = azurerm_storage_share.jmeter_share.name
+    }
 
-#     commands = [
-#       "/bin/sh",
-#       "-c",
-#       "cd /jmeter; /entrypoint.sh -n -J server.rmi.ssl.disable=true -t ${var.JMETER_JMX_FILE} -l ${var.JMETER_RESULTS_FILE} -e -o ${join(",", "${azurerm_network_interface.jmeter_slave_nic.*.private_ip_address}")}",
-#     ]
-#   }
-# }
+    commands = [
+      "/bin/sh",
+      "-c",
+      "cd /jmeter; /entrypoint.sh -n -J server.rmi.ssl.disable=true -t ${var.JMETER_JMX_FILE} -l ${var.JMETER_RESULTS_FILE} -e -o ${join(",", "${azurerm_network_interface.jmeter_slave_nic.*.private_ip_address}")}",
+    ]
+  }
+}

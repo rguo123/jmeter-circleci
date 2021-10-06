@@ -26,9 +26,40 @@ parameters:
 orbs:
   windows: << pipeline.parameters.windows_image >>
   terraform: circleci/terraform@3.0.0
+  azure-cli: circleci/azure-cli@1.2.0
 
 jobs:
-  build:
+  build_image:
+    description: Build and Push JMeter Docker image
+    executor:
+      name: azure-cli/default
+    steps:
+      - checkout
+
+      - run:
+          name: "Login to Azure"
+          command: |
+            # Login using service principal
+            az login `
+            --service-principal `
+            --tenant "$Env:ARM_TENANT_ID" `
+            --username "$Env:ARM_CLIENT_ID" `
+            --password "$Env:ARM_CLIENT_SECRET"
+
+            # Set default subscription
+            az account set `
+            --subscription "$Env:ARM_SUBSCRIPTION_ID"
+
+      - run:
+          name: "Build and Push JMeter Docker image"
+          command: |
+            az acr build `
+            -t $Env:TF_VAR_JMETER_DOCKER_IMAGE `
+            -r $Env:TF_VAR_JMETER_IMAGE_REGISTRY_NAME `
+            -f docker/Dockerfile `
+            .
+
+  build_web_app:
     description: Build application with Release configuration
     executor:
       name: windows/default
@@ -42,7 +73,7 @@ jobs:
             build << pipeline.parameters.project_dir >>
             --configuration Release
 
-  test:
+  test_web_app:
     description: Setup and run application tests
     executor:
       name: windows/default
@@ -68,7 +99,7 @@ jobs:
           name: "Store test results"
           path: << pipeline.parameters.test_dir >>/TestResults
 
-  package:
+  package_web_app:
     description: Package application
     executor:
       name: windows/default
@@ -310,33 +341,45 @@ jobs:
       - terraform/apply:
           path: terraform
 
-      # - terraform/destroy:
-      #     path: terraform
+      - terraform/destroy:
+          path: terraform
 
 workflows:
-  build_deploy:
+  build_jmeter_docker_image:
     jobs:
-      - build
-      - test:
+      - build_image_approval:
+          type: approval
+      - build_image:
           requires:
-            - build
-      - package:
-          requires:
-            - test
+            - build_image_approval
           # filters:
           #   branches:
           #     only:
           #       - main
-      # - hold:
+
+  build_deploy_loadtest:
+    jobs:
+      - build_web_app
+      - test_web_app:
+          requires:
+            - build_web_app
+      - package_web_app:
+          requires:
+            - test_web_app
+          # filters:
+          #   branches:
+          #     only:
+          #       - main
+      # - deploy_approval:
       #     type: approval
       #     requires:
-      #       - package
+      #       - package_web_app
       - deploy_terraform:
           requires:
-            - package # hold
+            - package # deploy_approval
       # - deploy_az_cli:
       #     requires:
-      #       - hold
+      #       - deploy_approval
       # - loadtest_az_cli:
       #     requires:
       #       - deploy_az_cli
