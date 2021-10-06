@@ -304,19 +304,19 @@ jobs:
           at: .
 
       - terraform/init:
-          path: .
+          path: terraform
 
       - terraform/validate:
-          path: .
+          path: terraform
 
       - terraform/plan:
-          path: .
+          path: terraform
 
       - terraform/apply:
-          path: .
+          path: terraform
 
-      - terraform/destroy:
-          path: .
+      # - terraform/destroy:
+      #     path: terraform
 
 workflows:
   build_deploy:
@@ -332,10 +332,10 @@ workflows:
           #   branches:
           #     only:
           #       - main
-      - hold:
-          type: approval
-          requires:
-            - package
+      # - hold:
+      #     type: approval
+      #     requires:
+      #       - package
       - deploy_terraform:
           requires:
             - package # hold
