@@ -376,7 +376,7 @@ workflows:
       #       - package_web_app
       - deploy_terraform:
           requires:
-            - package # deploy_approval
+            - package_web_app # deploy_approval
       # - deploy_az_cli:
       #     requires:
       #       - deploy_approval
