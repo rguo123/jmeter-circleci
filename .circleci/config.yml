@@ -38,9 +38,9 @@ commands:
           command: az -v
 
       - azure-cli/login-with-service-principal:
-          azure-sp: $Env:ARM_CLIENT_ID
-          azure-sp-password: $Env:ARM_CLIENT_SECRET
-          azure-sp-tenant: $Env:ARM_TENANT_ID
+          azure-sp: ARM_CLIENT_ID
+          azure-sp-password: ARM_CLIENT_SECRET
+          azure-sp-tenant: ARM_TENANT_ID
 
 jobs:
   build_image:
