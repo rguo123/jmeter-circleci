@@ -187,7 +187,7 @@ jobs:
       - attach_workspace:
           at: .
 
-      - login-to-azure
+      # - login-to-azure
 
       - terraform/init:
           path: terraform
