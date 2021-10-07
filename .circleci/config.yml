@@ -46,7 +46,7 @@ jobs:
   build_image:
     description: Build and Push JMeter Docker image
     executor:
-      name: windows/default
+      name: terraform/default
     steps:
       - checkout
 
