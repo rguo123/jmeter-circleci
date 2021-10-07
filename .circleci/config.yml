@@ -54,11 +54,11 @@ jobs:
 
       - run:
           name: "Build and Push JMeter Docker image"
-          command: |
-            az acr build `
-            -t $TF_VAR_JMETER_DOCKER_IMAGE `
-            -r $TF_VAR_JMETER_IMAGE_REGISTRY_NAME `
-            -f docker/Dockerfile `
+          command: >
+            az acr build
+            -t $TF_VAR_JMETER_DOCKER_IMAGE
+            -r $TF_VAR_JMETER_IMAGE_REGISTRY_NAME
+            -f docker/Dockerfile
             .
 
   build_web_app:
