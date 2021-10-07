@@ -126,7 +126,60 @@ jobs:
           paths:
             - << pipeline.parameters.function_zip_file >>
 
-  deploy_terraform:
+  deploy_web_app:
+    description: Deploy application
+    executor:
+      name: azure-cli/default
+    steps:
+      - attach_workspace:
+          at: .
+
+      - login-to-azure
+
+      - run:
+          name: "Create azure function"
+          command: |
+            # Set common variables which is associated with build id
+            $rg = "rg-jmetercircleci$Env:CIRCLE_BUILD_NUM"
+            $st = "stjmetercircleci$Env:CIRCLE_BUILD_NUM"
+            $func = "func-jmetercircleci$Env:CIRCLE_BUILD_NUM"
+
+            # Create resource group
+            az group create \
+            --location eastus \
+            --name "$rg"
+
+            # Create storage account
+            az storage account create \
+            --resource-group "$rg" \
+            --name "$st"
+
+            # Create azure function app
+            az functionapp create \
+            --resource-group "$rg" \
+            --storage-account "$st" \
+            --name "$func" \
+            --consumption-plan-location eastus \
+            --os-type Windows \
+            --runtime dotnet
+
+            # Deploy zip file
+            az functionapp deployment source config-zip \
+            --resource-group "$rg" \
+            --name "$func" \
+            --src << pipeline.parameters.function_zip_file >>
+
+            # Output variables to file
+            echo "`$buildNum=`"$Env:CIRCLE_BUILD_NUM`"" >> output.ps1
+            echo "`$targetHost=`"$func.azurewebsites.net`"" >> output.ps1
+
+      - persist_to_workspace:
+          name: "Upload output file to shared workspace"
+          root: .
+          paths:
+            - output.ps1
+
+  load_test:
     executor: terraform/default
     steps:
       - checkout
@@ -198,6 +251,9 @@ workflows:
           type: approval
           requires:
             - package_web_app
-      - deploy_terraform:
+      - deploy_web_app:
           requires:
             - deploy_approval
+      - load_test:
+          requires:
+            - deploy_web_app
