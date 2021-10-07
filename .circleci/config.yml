@@ -128,7 +128,6 @@ jobs:
 
   deploy_terraform:
     executor: azure-cli/default
-    working_directory: terraform
     steps:
       - checkout
 
