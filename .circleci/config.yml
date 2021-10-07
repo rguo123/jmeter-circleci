@@ -31,8 +31,7 @@ orbs:
 commands:
   login-to-azure:
     steps:
-      - azure-cli/install:
-          shell: bash.exe
+      - azure-cli/install
 
       - run:
           name: "Verify Azure install"
@@ -47,7 +46,7 @@ jobs:
   build_image:
     description: Build and Push JMeter Docker image
     executor:
-      name: windows/default
+      name: azure-cli/default
     steps:
       - checkout
 
