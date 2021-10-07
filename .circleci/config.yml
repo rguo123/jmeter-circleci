@@ -140,9 +140,9 @@ jobs:
           name: "Create azure function"
           command: |
             # Set common variables which is associated with build id
-            $rg="rg-jmetercircleci$CIRCLE_BUILD_NUM"
-            $st="stjmetercircleci$CIRCLE_BUILD_NUM"
-            $func="func-jmetercircleci$CIRCLE_BUILD_NUM"
+            rg="rg-jmetercircleci$CIRCLE_BUILD_NUM"
+            st="stjmetercircleci$CIRCLE_BUILD_NUM"
+            func="func-jmetercircleci$CIRCLE_BUILD_NUM"
 
             # Create resource group
             az group create \
