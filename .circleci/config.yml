@@ -236,10 +236,13 @@ jobs:
       - run:
           name: "Transfer JMeter Files to Storage Account"
           command: |
+            azcopy --help
+            URL=$(terraform output --raw storage_file_share_url)
+            KEY=$(terraform output --raw storage_account_key)
             azcopy \
             --source << pipeline.parameters.jmeter_directory_input >> \
-            --destination $(terraform output storage_file_share_url) \
-            --dest-key $(terraform output storage_account_key) \
+            --destination $URL \
+            --dest-key $KEY \
             --recursive
 
       - terraform/apply:
