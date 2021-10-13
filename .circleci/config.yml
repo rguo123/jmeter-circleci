@@ -19,6 +19,9 @@ parameters:
   key_vault_name:
     type: string
     default: "kv-circleci"
+  jmeter_directory_input:
+    type: string
+    default: "jmeter"
 
 orbs:
   windows: circleci/windows@2.2.0
@@ -38,6 +41,26 @@ commands:
           azure-sp: ARM_CLIENT_ID
           azure-sp-password: ARM_CLIENT_SECRET
           azure-sp-tenant: ARM_TENANT_ID
+
+  install-terraform-linux:
+    steps:
+      - run:
+          name: "Install terraform"
+          command: |
+            sudo apt-get update && sudo apt-get install -y gnupg software-properties-common curl
+            curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+            sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+            sudo apt-get update && sudo apt-get install terraform
+
+  install-azcopy-linux:
+    steps:
+      - run:
+          name: "Install AzCopy"
+          command: |
+            wget https://aka.ms/downloadazcopy-v10-linux
+            tar -xvf downloadazcopy-v10-linux
+            sudo cp ./azcopy_linux_amd64_*/azcopy /usr/bin/
+            sudo chmod +x /usr/bin/azcopy
 
 jobs:
   build_image:
@@ -167,7 +190,8 @@ jobs:
             az functionapp deployment source config-zip \
             --resource-group "$rg" \
             --name "$func" \
-            --src << pipeline.parameters.function_zip_file >>
+            --src << pipeline.parameters.function_zip_file >> \
+            || true
 
             # Output variables to file
             echo "`$buildNum=`"$Env:CIRCLE_BUILD_NUM`"" >> output.ps1
@@ -180,14 +204,19 @@ jobs:
             - output.ps1
 
   load_test:
-    executor: terraform/default
+    machine:
+      image: ubuntu-1604:201903-01
     steps:
       - checkout
 
       - attach_workspace:
           at: .
 
-      # - login-to-azure
+      - login-to-azure
+
+      - install-terraform-linux
+
+      - install-azcopy-linux
 
       - terraform/init:
           path: terraform
@@ -198,14 +227,33 @@ jobs:
       - terraform/plan:
           path: terraform
 
+      - run:
+          name: "Run Terraform Apply (target=file share)"
+          working_directory: terraform
+          command: |
+            terraform apply -target azurerm_storage_share.jmeter_share -auto-approve
+
+      - run:
+          name: "Transfer JMeter Files to Storage Account"
+          command: |
+            azcopy --help
+            URL=$(terraform output --raw storage_file_share_url)
+            KEY=$(terraform output --raw storage_account_key)
+            azcopy \
+            --source << pipeline.parameters.jmeter_directory_input >> \
+            --destination $URL \
+            --dest-key $KEY \
+            --recursive
+
       - terraform/apply:
           path: terraform
 
       - run:
           name: "Waiting for test results."
+          working_directory: terraform
           command: |
-            RG = & terraform output resource_group_name
-            NAME = & terraform output jmeter_master_name
+            RG=$(terraform output --raw resource_group_name)
+            NAME=$(terraform output --raw jmeter_master_name)
             echo "`date`: Started!"
             while [ $(az container show -g $RG -n $NAME --query "containers[0].instanceView.currentState.state" -o tsv) == "Running" ]; do
               echo "`date`: Still Running..."
@@ -215,8 +263,11 @@ jobs:
 
       - run:
           name: "Get output logs."
+          working_directory: terraform
           command: |
-            az container logs -g $(terraform output resource_group_name) -n $(terraform output jmeter_master_name)
+            RG=$(terraform output --raw resource_group_name)
+            NAME=$(terraform output --raw jmeter_master_name)
+            az container logs -g $RG -n $NAME
 
       # - terraform/destroy:
       #     path: terraform
