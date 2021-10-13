@@ -217,6 +217,7 @@ jobs:
 
       - run:
           name: "Waiting for test results."
+          working_directory: terraform
           command: |
             RG=$(terraform output resource_group_name)
             NAME=$(terraform output jmeter_master_name)
@@ -229,6 +230,7 @@ jobs:
 
       - run:
           name: "Get output logs."
+          working_directory: terraform
           command: |
             az container logs -g $(terraform output resource_group_name) -n $(terraform output jmeter_master_name)
 
