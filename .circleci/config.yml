@@ -219,8 +219,8 @@ jobs:
           name: "Waiting for test results."
           working_directory: terraform
           command: |
-            RG=$(terraform output resource_group_name)
-            NAME=$(terraform output jmeter_master_name)
+            RG=$(terraform output --raw resource_group_name)
+            NAME=$(terraform output --raw jmeter_master_name)
             echo "`date`: Started!"
             while [ $(az container show -g $RG -n $NAME --query "containers[0].instanceView.currentState.state" -o tsv) == "Running" ]; do
               echo "`date`: Still Running..."
@@ -232,7 +232,9 @@ jobs:
           name: "Get output logs."
           working_directory: terraform
           command: |
-            az container logs -g $(terraform output resource_group_name) -n $(terraform output jmeter_master_name)
+            RG=$(terraform output --raw resource_group_name)
+            NAME=$(terraform output --raw jmeter_master_name)
+            az container logs -g $RG -n $NAME
 
       # - terraform/destroy:
       #     path: terraform
