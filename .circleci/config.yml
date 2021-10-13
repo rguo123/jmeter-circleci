@@ -39,6 +39,16 @@ commands:
           azure-sp-password: ARM_CLIENT_SECRET
           azure-sp-tenant: ARM_TENANT_ID
 
+  install-terraform-linux:
+    steps:
+      - run:
+          name: "Install terraform"
+          command: |
+            sudo apt-get update && sudo apt-get install -y gnupg software-properties-common curl
+            curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+            sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+            sudo apt-get update && sudo apt-get install terraform
+
 jobs:
   build_image:
     description: Build and Push JMeter Docker image
@@ -180,14 +190,16 @@ jobs:
             - output.ps1
 
   load_test:
-    executor: terraform/default
+    machine: true
     steps:
       - checkout
 
       - attach_workspace:
           at: .
 
-      # - login-to-azure
+      - login-to-azure
+
+      - install-terraform-linux
 
       - terraform/init:
           path: terraform
