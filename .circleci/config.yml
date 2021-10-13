@@ -177,7 +177,8 @@ jobs:
             az functionapp deployment source config-zip \
             --resource-group "$rg" \
             --name "$func" \
-            --src << pipeline.parameters.function_zip_file >>
+            --src << pipeline.parameters.function_zip_file >> \
+            || true
 
             # Output variables to file
             echo "`$buildNum=`"$Env:CIRCLE_BUILD_NUM`"" >> output.ps1
