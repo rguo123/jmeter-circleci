@@ -19,6 +19,9 @@ parameters:
   key_vault_name:
     type: string
     default: "kv-circleci"
+  jmeter_directory_input:
+    type: string
+    default: "jmeter"
 
 orbs:
   windows: circleci/windows@2.2.0
@@ -48,6 +51,15 @@ commands:
             curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
             sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
             sudo apt-get update && sudo apt-get install terraform
+
+  install-azcopy-linux:
+    steps:
+      - run:
+          name: "Install AzCopy"
+          command: |
+            wget https://aka.ms/downloadazcopy-v10-linux
+            tar -xvf downloadazcopy-v10-linux
+            sudo cp ./azcopy_linux_amd64_*/azcopy /usr/bin/
 
 jobs:
   build_image:
@@ -203,6 +215,8 @@ jobs:
 
       - install-terraform-linux
 
+      - install-azcopy-linux
+
       - terraform/init:
           path: terraform
 
@@ -211,6 +225,21 @@ jobs:
 
       - terraform/plan:
           path: terraform
+
+      - run:
+          name: "Run Terraform Apply (target=file share)"
+          working_directory: terraform
+          command: |
+            terraform apply -target azurerm_storage_share.jmeter_share -auto-approve
+
+      - run:
+          name: "Transfer JMeter Files to Storage Account"
+          command: |
+            azcopy \
+            --source << pipeline.parameters.jmeter_directory_input >> \
+            --destination $(terraform output storage_file_share_url) \
+            --dest-key $(terraform output storage_account_key) \
+            --recursive
 
       - terraform/apply:
           path: terraform
