@@ -291,6 +291,7 @@ jobs:
 
       - run:
           name: "Download JMeter Results."
+          working_directory: terraform
           command: |
             KEY=$(terraform output --raw storage_account_key)
             FILESHARE_NAME=$(terraform output --raw storage_file_share_name)
@@ -299,6 +300,7 @@ jobs:
 
       - run:
           name: "Convert JMeter results to JUnit."
+          working_directory: terraform
           command: |
             JMETER_RESULTS=$(terraform output --raw jmeter_results_file)
             JUNIT_RESULTS=<< pipeline.parameters.junit_file_name >>
@@ -306,6 +308,7 @@ jobs:
 
       - run:
           name: "Upload JUnit Results to fileshare."
+          working_directory: terraform
           command: |
             KEY=$(terraform output --raw storage_account_key)
             FILESHARE_NAME=$(terraform output --raw storage_file_share_name)
