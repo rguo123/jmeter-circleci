@@ -37,7 +37,7 @@ resource "azurerm_subnet" "jmeter_vm_subnet" {
   resource_group_name  = azurerm_resource_group.jmeter_rg.name
   virtual_network_name = azurerm_virtual_network.jmeter_vnet.name
   address_prefix       = var.VM_SUBNET_ADDRESS_PREFIX
-  service_endpoints = ["Microsoft.Storage"]
+  service_endpoints    = ["Microsoft.Storage"]
 }
 
 resource "azurerm_network_profile" "jmeter_net_profile" {
@@ -76,14 +76,14 @@ resource "azurerm_storage_share" "jmeter_share" {
 }
 
 resource "azurerm_network_interface" "jmeter_slave_nic" {
-  name = "${var.PREFIX}-slave-nic${count.index}"
-  count = var.JMETER_SLAVES_COUNT
-  location              = azurerm_resource_group.jmeter_rg.location
-  resource_group_name   = azurerm_resource_group.jmeter_rg.name
+  name                = "${var.PREFIX}-slave-nic${count.index}"
+  count               = var.JMETER_SLAVES_COUNT
+  location            = azurerm_resource_group.jmeter_rg.location
+  resource_group_name = azurerm_resource_group.jmeter_rg.name
   ip_configuration {
     name                          = "${var.PREFIX}ipconfig"
     subnet_id                     = azurerm_subnet.jmeter_vm_subnet.id
-    private_ip_address_allocation = "Dynamic" 
+    private_ip_address_allocation = "Dynamic"
   }
 }
 
@@ -102,16 +102,16 @@ resource "azurerm_virtual_machine" "jmeter_slaves" {
     version   = "latest"
   }
 
-   identity {
+  identity {
     type = "SystemAssigned"
   }
 
   storage_os_disk {
-  name              = "myosdisk1${count.index}"
-  caching           = "ReadWrite"
-  create_option     = "FromImage"
-  managed_disk_type = "Standard_LRS"
-}
+    name              = "myosdisk1${count.index}"
+    caching           = "ReadWrite"
+    create_option     = "FromImage"
+    managed_disk_type = "Standard_LRS"
+  }
 
   os_profile {
     computer_name  = "${var.PREFIX}-slave${count.index}"
@@ -151,11 +151,11 @@ resource "azurerm_virtual_machine_extension" "jmeter_vm_extension" {
   type                 = "CustomScript"
   type_handler_version = "2.0"
 
-settings = <<SETTINGS
+  settings = <<SETTINGS
     {
         "script": "${base64encode(templatefile("scripts/slaveinit.sh", {
-          FILE_RG="${azurerm_resource_group.jmeter_rg.name}", STOACC_NAME="${azurerm_storage_account.jmeter_storage.name}", FILESHARE_NAME="${azurerm_storage_share.jmeter_share.name}" 
-        }))}"
+  FILE_RG = "${azurerm_resource_group.jmeter_rg.name}", STOACC_NAME = "${azurerm_storage_account.jmeter_storage.name}", FILESHARE_NAME = "${azurerm_storage_share.jmeter_share.name}"
+}))}"
     }
 SETTINGS
 
@@ -204,7 +204,7 @@ resource "azurerm_container_group" "jmeter_master" {
     commands = [
       "/bin/sh",
       "-c",
-      "cd /jmeter; /entrypoint.sh -n -J server.rmi.ssl.disable=true -t ${var.JMETER_JMX_FILE} -l ${var.JMETER_RESULTS_FILE} -e -o ${join(",", "${azurerm_network_interface.jmeter_slave_nic.*.private_ip_address}")}",
+      "cd /jmeter; /entrypoint.sh -n -J server.rmi.ssl.disable=true -t ${var.JMETER_JMX_FILE} -l ${var.JMETER_RESULTS_FILE} -G target_hostname=${var.TARGET_HOSTNAME} -e -o ${join(",", "${azurerm_network_interface.jmeter_slave_nic.*.private_ip_address}")}",
     ]
   }
 }

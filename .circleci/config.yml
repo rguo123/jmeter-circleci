@@ -201,14 +201,13 @@ jobs:
             || true
 
             # Output variables to file
-            echo "`$buildNum=`"$Env:CIRCLE_BUILD_NUM`"" >> output.ps1
-            echo "`$targetHost=`"$func.azurewebsites.net`"" >> output.ps1
+            echo "TF_VAR_TARGET_HOSTNAME=$func.azurewebsites.net" >> .env
 
       - persist_to_workspace:
           name: "Upload output file to shared workspace"
           root: .
           paths:
-            - output.ps1
+            - .env
 
   load_test:
     machine:
@@ -237,32 +236,34 @@ jobs:
       - run:
           name: "Run Terraform Apply (target=file share)"
           working_directory: terraform
-          command: |
-            terraform apply -target azurerm_storage_share.jmeter_share -auto-approve
+          command: >
+            terraform apply
+            -target azurerm_storage_share.jmeter_share
+            -auto-approve
 
       - run:
           name: "Transfer JMeter Files to Storage Account"
+          working_directory: terraform
           command: |
-            # debug
-            debug1=$(terraform output storage_file_share_url)
-            debug2=$(terraform output storage_account_key)
+            URL=$(terraform output --raw storage_file_share_url)
+            KEY=$(terraform output --raw storage_account_key)
 
-            echo $debug1
-            for (( i=0; i<${#debug2}; i++ )); do
-              echo "${debug2:$i:1}"
-            done
+            az storage file upload-batch \
+            --destination $URL \
+            --source "../<< pipeline.parameters.jmeter_directory_input >>" \
+            --account-key $KEY
 
-            ls -la
-            ls jmeter
+      - run:
+          name: "Run Terraform Apply"
+          working_directory: terraform
+          command: |
+            # Load output variables from file
+            set -a
+            source ../.env
+            set +a
 
-            azcopy \
-            --source << pipeline.parameters.jmeter_directory_input >> \
-            --destination $(terraform output storage_file_share_url) \
-            --dest-key $(terraform output storage_account_key) \
-            --recursive
-
-      - terraform/apply:
-          path: terraform
+            # Run terraform apply command
+            terraform apply -auto-approve
 
       - run:
           name: "Waiting for test results."

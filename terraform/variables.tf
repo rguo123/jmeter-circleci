@@ -113,3 +113,8 @@ variable "JMETER_DASHBOARD_FOLDER" {
   type    = string
   default = "dashboard"
 }
+
+variable "TARGET_HOSTNAME" {
+  type    = string
+  default = "microsoft.com"
+}
