@@ -243,15 +243,23 @@ jobs:
       - run:
           name: "Transfer JMeter Files to Storage Account"
           command: |
+            # debug
+            debug1=$(terraform output storage_file_share_url)
+            debug2=$(terraform output storage_account_key)
+
+            echo $debug1
+            for (( i=0; i<${#debug2}; i++ )); do
+              echo "${debug2:$i:1}"
+            done
+
+            ls -la
+            ls jmeter
+
             azcopy \
             --source << pipeline.parameters.jmeter_directory_input >> \
             --destination $(terraform output storage_file_share_url) \
-            --dest-key $(terraform output --raw storage_account_key) \
+            --dest-key $(terraform output storage_account_key) \
             --recursive
-
-            # debug
-            echo $(terraform output storage_file_share_url)
-            echo $(terraform output --raw storage_account_key)
 
       - terraform/apply:
           path: terraform
