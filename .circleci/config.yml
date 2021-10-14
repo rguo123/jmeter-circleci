@@ -257,7 +257,7 @@ jobs:
           command: |
             # Load output variables from file
             set -a
-            source .env
+            source ../.env
             set +a
 
             # Run terraform apply command
