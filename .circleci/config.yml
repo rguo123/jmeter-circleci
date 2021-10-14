@@ -25,9 +25,6 @@ parameters:
   junit_file_name:
     type: string
     default: "output.xml"
-  jmeter_directory_output:
-    type: strinng
-    default: "jmeter_output"
 
 orbs:
   windows: circleci/windows@2.2.0
