@@ -22,6 +22,12 @@ parameters:
   jmeter_directory_input:
     type: string
     default: "jmeter"
+  junit_file_name:
+    type: string
+    default: "output.xml"
+  jmeter_directory_output:
+    type: strinng
+    default: "jmeter_output"
 
 orbs:
   windows: circleci/windows@2.2.0
@@ -285,6 +291,29 @@ jobs:
             RG=$(terraform output --raw resource_group_name)
             NAME=$(terraform output --raw jmeter_master_name)
             az container logs -g $RG -n $NAME
+
+      - run:
+          name: "Download JMeter Results."
+          command: |
+            KEY=$(terraform output --raw storage_account_key)
+            FILESHARE_NAME=$(terraform output --raw storage_file_share_name)
+            JMETER_RESULTS_PATH=<< pipeline.parameters.jmeter_directory_input >>/$(terraform output --raw jmeter_results_file)
+            az storage file download -p $JMETER_RESULTS_PATH -s FILESHARE_NAME --account-key $KEY
+
+      - run:
+          name: "Convert JMeter results to JUnit."
+          command: |
+            JMETER_RESULTS=$(terraform output --raw jmeter_results_file)
+            JUNIT_RESULTS=<< pipeline.parameters.junit_file_name >>
+            python3 scripts/jtl_junit_converter.py $JMETER_RESULTS $JUNIT_RESULTS
+
+      - run:
+          name: "Upload JUnit Results to fileshare."
+          command: |
+            KEY=$(terraform output --raw storage_account_key)
+            FILESHARE_NAME=$(terraform output --raw storage_file_share_name)
+            JUNIT_RESULTS=<< pipeline.parameters.junit_file_name >>
+            az storage file upload -s $FILESHARE_NAME --source $JUNIT_RESULTS --account-key $KEY
 
       # - terraform/destroy:
       #     path: terraform
