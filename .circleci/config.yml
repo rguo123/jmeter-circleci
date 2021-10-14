@@ -201,14 +201,13 @@ jobs:
             || true
 
             # Output variables to file
-            echo "`$buildNum=`"$Env:CIRCLE_BUILD_NUM`"" >> output.ps1
-            echo "`$targetHost=`"$func.azurewebsites.net`"" >> output.ps1
+            echo "TF_VAR_TARGET_HOSTNAME=$func.azurewebsites.net" >> .env
 
       - persist_to_workspace:
           name: "Upload output file to shared workspace"
           root: .
           paths:
-            - output.ps1
+            - .env
 
   load_test:
     machine:
@@ -235,8 +234,10 @@ jobs:
       - run:
           name: "Run Terraform Apply (target=file share)"
           working_directory: terraform
-          command: |
-            terraform apply -target azurerm_storage_share.jmeter_share -auto-approve
+          command: >
+            terraform apply
+            -target azurerm_storage_share.jmeter_share
+            -auto-approve
 
       - run:
           name: "Transfer JMeter Files to Storage Account"
@@ -250,8 +251,17 @@ jobs:
             --source "../<< pipeline.parameters.jmeter_directory_input >>" \
             --account-key $KEY
 
-      - terraform/apply:
-          path: terraform
+      - run:
+          name: "Run Terraform Apply"
+          working_directory: terraform
+          command: |
+            # Load output variables from file
+            set -a
+            source .env
+            set +a
+
+            # Run terraform apply command
+            terraform apply -auto-approve
 
       - run:
           name: "Waiting for test results."
