@@ -223,8 +223,6 @@ jobs:
 
       - install-terraform-linux
 
-      - install-azcopy-linux
-
       - terraform/init:
           path: terraform
 
@@ -246,11 +244,11 @@ jobs:
           command: |
             URL=$(terraform output --raw storage_file_share_url)
             KEY=$(terraform output --raw storage_account_key)
-            azcopy \
-            --source << pipeline.parameters.jmeter_directory_input >> \
+
+            az storage file upload-batch \
             --destination $URL \
-            --dest-key $KEY \
-            --recursive
+            --source "../<< pipeline.parameters.jmeter_directory_input >>" \
+            --account-key $KEY
 
       - terraform/apply:
           path: terraform
