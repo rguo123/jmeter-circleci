@@ -57,10 +57,17 @@ commands:
       - run:
           name: "Install AzCopy"
           command: |
-            wget https://aka.ms/downloadazcopy-v10-linux
-            tar -xvf downloadazcopy-v10-linux
-            sudo cp ./azcopy_linux_amd64_*/azcopy /usr/bin/
-            sudo chmod +x /usr/bin/azcopy
+            # Install azcopy dependencies
+            sudo add-apt-repository "deb http://security.ubuntu.com/ubuntu xenial-security main"
+            sudo apt-get update
+            sudo apt-get install -y libicu55 libcurl3
+
+            # Install azcopy package from https://packages.microsoft.com/repos/microsoft-ubuntu-xenial-prod/
+            # See: https://docs.microsoft.com/en-us/previous-versions/azure/storage/storage-use-azcopy-linux
+            echo "deb [arch=amd64] https://packages.microsoft.com/repos/microsoft-ubuntu-xenial-prod/ xenial main" > azure.list
+            sudo cp ./azure.list /etc/apt/sources.list.d/
+            sudo apt-get update --allow-unauthenticated --allow-insecure-repositories
+            sudo apt-get install -y --allow-unauthenticated azcopy
 
 jobs:
   build_image:
@@ -205,7 +212,7 @@ jobs:
 
   load_test:
     machine:
-      image: ubuntu-1604:201903-01
+      image: ubuntu-2004:202107-02
     steps:
       - checkout
 
@@ -236,13 +243,22 @@ jobs:
       - run:
           name: "Transfer JMeter Files to Storage Account"
           command: |
-            azcopy --help
-            URL=$(terraform output --raw storage_file_share_url)
-            KEY=$(terraform output --raw storage_account_key)
+            # debug
+            debug1=$(terraform output storage_file_share_url)
+            debug2=$(terraform output storage_account_key)
+
+            echo $debug1
+            for (( i=0; i<${#debug2}; i++ )); do
+              echo "${debug2:$i:1}"
+            done
+
+            ls -la
+            ls jmeter
+
             azcopy \
             --source << pipeline.parameters.jmeter_directory_input >> \
-            --destination $URL \
-            --dest-key $KEY \
+            --destination $(terraform output storage_file_share_url) \
+            --dest-key $(terraform output storage_account_key) \
             --recursive
 
       - terraform/apply:
