@@ -204,7 +204,7 @@ resource "azurerm_container_group" "jmeter_master" {
     commands = [
       "/bin/sh",
       "-c",
-      "cd /jmeter; /entrypoint.sh -n -J server.rmi.ssl.disable=true -t ${var.JMETER_JMX_FILE} -l ${var.JMETER_RESULTS_FILE} -G target_hostname=${var.TARGET_HOSTNAME} -e -o ${join(",", "${azurerm_network_interface.jmeter_slave_nic.*.private_ip_address}")}",
+      "cd /jmeter; /entrypoint.sh -n -J server.rmi.ssl.disable=true -t ${var.JMETER_JMX_FILE} -Gtarget_hostname=${var.TARGET_HOSTNAME} -l ${var.JMETER_RESULTS_FILE} -e -o ${join(",", "${azurerm_network_interface.jmeter_slave_nic.*.private_ip_address}")}",
     ]
   }
 }
