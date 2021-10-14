@@ -212,7 +212,7 @@ jobs:
 
   load_test:
     machine:
-      image: ubuntu-1604:201903-01
+      image: ubuntu-2004:202107-02
     steps:
       - checkout
 
@@ -243,13 +243,15 @@ jobs:
       - run:
           name: "Transfer JMeter Files to Storage Account"
           command: |
-            URL=$(terraform output --raw storage_file_share_url)
-            KEY=$(terraform output --raw storage_account_key)
             azcopy \
             --source << pipeline.parameters.jmeter_directory_input >> \
-            --destination $URL \
-            --dest-key $KEY \
+            --destination $(terraform output storage_file_share_url) \
+            --dest-key $(terraform output --raw storage_account_key) \
             --recursive
+
+            # debug
+            echo $(terraform output storage_file_share_url)
+            echo $(terraform output --raw storage_account_key)
 
       - terraform/apply:
           path: terraform
