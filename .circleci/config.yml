@@ -297,6 +297,7 @@ jobs:
             STORAGE_NAME=$(terraform output --raw storage_account_name)
             FILESHARE_NAME=$(terraform output --raw storage_file_share_name)
             JMETER_RESULTS_PATH=<< pipeline.parameters.jmeter_directory_input >>/$(terraform output --raw jmeter_results_file)
+            echo $JMETER_RESULTS_PATH
             az storage file download -p $JMETER_RESULTS_PATH -s $FILESHARE_NAME --account-name $STORAGE_NAME --account-key $KEY
 
       - run:
