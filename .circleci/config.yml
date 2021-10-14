@@ -306,7 +306,7 @@ jobs:
           command: |
             JMETER_RESULTS=$(terraform output --raw jmeter_results_file)
             JUNIT_RESULTS=<< pipeline.parameters.junit_file_name >>
-            python3 scripts/jtl_junit_converter.py $JMETER_RESULTS $JUNIT_RESULTS
+            python3 ../scripts/jtl_junit_converter.py $JMETER_RESULTS $JUNIT_RESULTS
 
       - run:
           name: "Upload JUnit Results to fileshare."
