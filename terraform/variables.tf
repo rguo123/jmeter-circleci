@@ -23,47 +23,27 @@ variable "SUBNET_ADDRESS_PREFIX" {
   default = "10.0.0.0/24"
 }
 
-variable "VM_SUBNET_ADDRESS_PREFIX" {
-  type    = string
-  default = "10.0.1.0/24"
-}
-
-variable "JMETER_SLAVES_COUNT" {
+variable "JMETER_WORKERS_COUNT" {
   type    = number
   default = 1
 }
 
-variable "JMETER_SLAVE_CPU" {
+variable "JMETER_WORKER_CPU" {
   type    = string
   default = "2.0"
 }
 
-variable "JMETER_SLAVE_VM_SKU" {
-  type    = string
-  default = "Standard_F2"
-}
-
-variable "JMETER_SLAVE_VM_PASS" {
-  type    = string
-}
-
-variable "JMETER_SLAVE_VM_ROLE_ASSIGNMENT_NAME_PREFIX" {
-  type    = string
-  default = "F57CBBC8-BDE5-4191-913D-B9E"
-}
-
-
-variable "JMETER_SLAVE_MEMORY" {
+variable "JMETER_WORKER_MEMORY" {
   type    = string
   default = "8.0"
 }
 
-variable "JMETER_MASTER_CPU" {
+variable "JMETER_CONTROLLER_CPU" {
   type    = string
   default = "2.0"
 }
 
-variable "JMETER_MASTER_MEMORY" {
+variable "JMETER_CONTROLLER_MEMORY" {
   type    = string
   default = "8.0"
 }
@@ -78,17 +58,12 @@ variable "JMETER_DOCKER_PORT" {
   default = 1099
 }
 
-variable "JMETER_IMAGE_REGISTRY_SERVER" {
+variable "JMETER_ACR_NAME" {
   type    = string
   default = ""
 }
 
-variable "JMETER_IMAGE_REGISTRY_USERNAME" {
-  type    = string
-  default = ""
-}
-
-variable "JMETER_IMAGE_REGISTRY_PASSWORD" {
+variable "JMETER_ACR_RESOURCE_GROUP_NAME" {
   type    = string
   default = ""
 }
@@ -100,8 +75,8 @@ variable "JMETER_STORAGE_QUOTA_GIGABYTES" {
 
 variable "JMETER_JMX_FILE" {
   type        = string
-  default     = "sample.jmx"
   description = "JMX file"
+  default = "sample.jmx"
 }
 
 variable "JMETER_RESULTS_FILE" {
@@ -112,6 +87,11 @@ variable "JMETER_RESULTS_FILE" {
 variable "JMETER_DASHBOARD_FOLDER" {
   type    = string
   default = "dashboard"
+}
+
+variable "JMETER_EXTRA_CLI_ARGUMENTS" {
+  type    = string
+  default = ""
 }
 
 variable "TARGET_HOSTNAME" {
